@@ -1,14 +1,15 @@
 {
   "name": "backend",
   "version": "1.0.0",
-  "main": "index.js",
+  "private": true,
+  "type": "module",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "build": "nest build",
+    "start": "nest start",
+    "start:dev": "nest start --watch",
+    "start:debug": "nest start --debug --watch",
+    "start:prod": "node dist/main.js"
   },
-  "keywords": [],
-  "author": "",
-  "license": "ISC",
-  "description": "",
   "dependencies": {
     "@nestjs/common": "^12.3.3",
     "@nestjs/config": "^12.1.0",
@@ -19,6 +20,7 @@
     "bcrypt": "^6.0.0",
     "pg": "^8.23.1",
     "reflect-metadata": "^0.2.2",
+    "rxjs": "^7.8.2",
     "typeorm": "^0.3.31",
     "zod": "^4.6.7"
   },
@@ -32,6 +34,10 @@
     "@types/node": "^26.6.6",
     "@types/pg": "^8.23.1",
     "tsx": "^4.23.15",
-    "typescript": "^7.0.2"
+    "typescript": "^6.0.3"
+  },
+  "allowScripts": {
+    "bcrypt@6.0.0": true,
+    "esbuild@0.28.2": true
   }
 }
