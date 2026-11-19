@@ -4,20 +4,16 @@ import {
   ConflictException,
   UnauthorizedException,
 } from '@nestjs/common';
-import { InjectRepository } from '@nestjs/typeorm';
+
 import { JwtService, JwtSignOptions } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
-import {
-  Repository,
-  IsNull,
-} from 'typeorm';
 import * as bcrypt from 'bcrypt';
 import { createHash } from 'crypto';
 
-import { UsersService } from '../users/users.services.js';
-import { RefreshToken } from './entities/refresh-token.entity.js';
-import { RegisterDto } from './dto/register.dto.js';
-import { LoginDto } from './dto/login.dto.js';
+import { UsersService } from '../../users/services/users.services.js';
+import { RefreshTokensRepository } from '../repositories/refresh-token.repository.js';
+import { RegisterDto } from '../dto/register.dto.js';
+import { LoginDto } from '../dto/login.dto.js';
 
 @Injectable()
 export class AuthService {
@@ -25,12 +21,9 @@ export class AuthService {
     private readonly usersService: UsersService,
     private readonly jwtService: JwtService,
     private readonly configService: ConfigService,
-
-    @InjectRepository(RefreshToken)
-    private readonly refreshTokenRepository: Repository<RefreshToken>,
+    private readonly refreshTokensRepository: RefreshTokensRepository,
   ) {}
 
-  // Hash refresh tokens 
   private hashToken(token: string): string {
     return createHash('sha256')
       .update(token)
@@ -77,7 +70,6 @@ export class AuthService {
       },
     );
 
-    //refresh token expiration timestamp
     const decoded = this.jwtService.decode(refreshToken) as {
       exp?: number;
     } | null;
@@ -86,13 +78,11 @@ export class AuthService {
       throw new Error('Could not determine refresh token expiration');
     }
 
-    const tokenRecord = this.refreshTokenRepository.create({
+    await this.refreshTokensRepository.create({
       tokenHash: this.hashToken(refreshToken),
       expiresAt: new Date(decoded.exp * 1000),
       user: { id: user.id } as any,
     });
-
-    await this.refreshTokenRepository.save(tokenRecord);
 
     return {
       accessToken,
@@ -100,25 +90,24 @@ export class AuthService {
     };
   }
 
-  // Register a new user
+  // Register
   async register(registerDto: RegisterDto) {
-    const existingUser = await this.usersService.findByEmail(
-      registerDto.email,
-    );
+    const email = registerDto.email.trim().toLowerCase();
+
+    const existingUser = await this.usersService.findByEmail(email);
 
     if (existingUser) {
       throw new ConflictException('Email is already registered');
     }
 
-    // Hash password before saving
     const passwordHash = await bcrypt.hash(
       registerDto.password,
       12,
     );
 
     const user = await this.usersService.create({
-      fullName: registerDto.fullName,
-      email: registerDto.email,
+      fullName: registerDto.fullName.trim(),
+      email,
       passwordHash,
     });
 
@@ -135,11 +124,11 @@ export class AuthService {
     };
   }
 
-  // Login an existing user
+  // Login
   async login(loginDto: LoginDto) {
-    const user = await this.usersService.findByEmail(
-      loginDto.email,
-    );
+    const email = loginDto.email.trim().toLowerCase();
+
+    const user = await this.usersService.findByEmail(email);
 
     if (!user) {
       throw new UnauthorizedException('Invalid email or password');
@@ -167,8 +156,9 @@ export class AuthService {
     };
   }
 
+  // Refresh and rotate tokens
   async refresh(rawToken: string) {
-    let payload: { sub: string };
+    let payload: { sub: string; email: string };
 
     try {
       payload = await this.jwtService.verifyAsync(
@@ -187,10 +177,8 @@ export class AuthService {
 
     const tokenHash = this.hashToken(rawToken);
 
-    const storedToken = await this.refreshTokenRepository.findOne({
-      where: { tokenHash },
-      relations: { user: true },
-    });
+    const storedToken =
+      await this.refreshTokensRepository.findByHash(tokenHash);
 
     if (
       !storedToken ||
@@ -203,24 +191,18 @@ export class AuthService {
       );
     }
 
-    // Revoke the old token atomically 
-    const revokeResult = await this.refreshTokenRepository.update(
-      {
-        id: storedToken.id,
-        revokedAt: IsNull(),
-      },
-      {
-        revokedAt: new Date(),
-      },
-    );
+    // Revoke the old refresh token before issuing another
+    const revoked =
+      await this.refreshTokensRepository.revokeIfActive(
+        storedToken.id,
+      );
 
-    if (revokeResult.affected !== 1) {
+    if (!revoked) {
       throw new UnauthorizedException(
         'Refresh token has already been used',
       );
     }
 
-    // new access token and refresh token
     const tokens = await this.generateTokens(storedToken.user);
 
     return {
@@ -229,19 +211,11 @@ export class AuthService {
     };
   }
 
-  // Logout by revoking the refresh token
+  // Logout
   async logout(rawToken: string) {
     const tokenHash = this.hashToken(rawToken);
 
-    const storedToken = await this.refreshTokenRepository.findOne({
-      where: { tokenHash },
-    });
-
-    if (storedToken && !storedToken.revokedAt) {
-      storedToken.revokedAt = new Date();
-
-      await this.refreshTokenRepository.save(storedToken);
-    }
+    await this.refreshTokensRepository.revokeByHash(tokenHash);
 
     return {
       message: 'Logout successful',

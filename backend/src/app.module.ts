@@ -8,6 +8,7 @@ import { AppService } from './app.service.js';
 
 import { User } from './users/entities/user.entity.js';
 import { RefreshToken } from './auth/entities/refresh-token.entity.js';
+import { AuthModule } from './auth/module/auth.module.js';
 
 @Module({
   imports: [
@@ -32,6 +33,8 @@ import { RefreshToken } from './auth/entities/refresh-token.entity.js';
         synchronize: true,
       }),
     }),
+
+    AuthModule,
   ],
 
   controllers: [AppController],
