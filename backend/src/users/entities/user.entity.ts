@@ -9,6 +9,7 @@ import {
 } from 'typeorm';
 
 import type { Relation } from 'typeorm';
+
 import { RefreshToken } from '../../auth/entities/refresh-token.entity.js';
 
 @Entity('users')
@@ -24,6 +25,12 @@ export class User {
 
   @Column()
   passwordHash: string;
+
+  @Column({ type: 'varchar', nullable: true, select: false })
+  resetPasswordToken: string | null;
+
+  @Column({ type: 'timestamp', nullable: true, select: false })
+  resetPasswordExpires: Date | null;
 
   @CreateDateColumn()
   createdAt: Date;
