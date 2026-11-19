@@ -1,11 +1,12 @@
-
 import {
     Entity,
     PrimaryGeneratedColumn,
     Column,
     CreateDateColumn,
     UpdateDateColumn,
+    OneToMany
 } from 'typeorm';
+import { VehicleImage } from './vehicle-image.entity.js';
 
 export enum VehicleType {
     CAR = 'CAR',
@@ -49,8 +50,11 @@ export class Vehicle {
     @Column({ type: 'decimal', precision: 12, scale: 2 })
     price: string;
 
-    @Column({ type: 'text', nullable: true })
-    imageUrl: string | null;
+    @OneToMany(
+        () => VehicleImage,
+        (vehicleImage) => vehicleImage.vehicle,
+    )
+    images: VehicleImage[];
 
     @CreateDateColumn({ type: 'timestamptz' })
     createdAt: Date;
