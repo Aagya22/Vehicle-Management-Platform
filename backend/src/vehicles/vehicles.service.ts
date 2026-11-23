@@ -2,14 +2,20 @@
 import {
     Injectable,
     InternalServerErrorException,
+    BadRequestException,
 } from '@nestjs/common';
+
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 
 import { Vehicle } from './entities/vehicle.entity.js';
 import { VehicleImage } from './entities/vehicle-image.entity.js';
+
 import { CloudinaryService } from '../cloudinary/cloudinary.service.js';
-import { CreateVehicleDto } from './dto/create-vehicle.dto.js';
+import { CreateVehicleDto } from './dto/request/create-vehicle.dto.js';
+
+import type { VehicleResponseDto } from './dto/response/vehicle-response.dto.js';
+import type { VehicleListResponseDto } from './dto/response/vehicle-list-response.dto.js';
 
 @Injectable()
 export class VehiclesService {
@@ -23,7 +29,10 @@ export class VehiclesService {
         private readonly cloudinaryService: CloudinaryService,
     ) { }
 
-    async findAll(page: number, limit: number) {
+    async findAll(
+        page: number,
+        limit: number,
+    ): Promise<VehicleListResponseDto> {
         const [vehicles, total] = await this.vehicleRepository.findAndCount({
             relations: {
                 images: true,
@@ -37,7 +46,9 @@ export class VehiclesService {
         });
 
         return {
-            data: vehicles,
+            data: vehicles.map((vehicle) =>
+                this.toVehicleResponse(vehicle),
+            ),
             meta: {
                 total,
                 page,
@@ -50,9 +61,9 @@ export class VehiclesService {
     async create(
         createVehicleDto: CreateVehicleDto,
         files: Express.Multer.File[],
-    ) {
+    ): Promise<VehicleResponseDto> {
         if (!files || files.length === 0) {
-            throw new InternalServerErrorException(
+            throw new BadRequestException(
                 'At least one vehicle image is required',
             );
         }
@@ -82,7 +93,7 @@ export class VehiclesService {
 
         await this.vehicleImageRepository.save(vehicleImages);
 
-        return this.vehicleRepository.findOne({
+        const createdVehicle = await this.vehicleRepository.findOne({
             where: {
                 id: savedVehicle.id,
             },
@@ -90,5 +101,40 @@ export class VehiclesService {
                 images: true,
             },
         });
+
+        if (!createdVehicle) {
+            throw new InternalServerErrorException(
+                'Vehicle was created but could not be retrieved',
+            );
+        }
+
+        return this.toVehicleResponse(createdVehicle);
+    }
+
+    private toVehicleResponse(
+        vehicle: Vehicle,
+    ): VehicleResponseDto {
+        return {
+            id: vehicle.id,
+            vehicleCode: vehicle.vehicleCode,
+            name: vehicle.name,
+            brand: vehicle.brand,
+            model: vehicle.model,
+            vehicleType: vehicle.vehicleType,
+            year: vehicle.year,
+            description: vehicle.description,
+            price: vehicle.price,
+
+            images: vehicle.images.map((image) => ({
+                id: image.id,
+                imageUrl: image.imageUrl,
+                isPrimary: image.isPrimary,
+                displayOrder: image.displayOrder,
+                createdAt: image.createdAt,
+            })),
+
+            createdAt: vehicle.createdAt,
+            updatedAt: vehicle.updatedAt,
+        };
     }
 }
