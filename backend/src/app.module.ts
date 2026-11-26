@@ -1,14 +1,13 @@
-
 import { Module } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { TypeOrmModule } from '@nestjs/typeorm';
 
 import { AppController } from './app.controller.js';
 import { AppService } from './app.service.js';
+import { getDatabaseConfig } from './config/database.config.js';
 
-import { User } from './users/entities/user.entity.js';
-import { RefreshToken } from './auth/entities/refresh-token.entity.js';
 import { AuthModule } from './auth/module/auth.module.js';
+import { VehiclesModule } from './vehicles/vehicles.module.js';
 
 @Module({
   imports: [
@@ -19,22 +18,11 @@ import { AuthModule } from './auth/module/auth.module.js';
     TypeOrmModule.forRootAsync({
       imports: [ConfigModule],
       inject: [ConfigService],
-
-      useFactory: (config: ConfigService) => ({
-        type: 'postgres' as const,
-        url: config.getOrThrow<string>('DATABASE_URL'),
-
-        ssl: {
-          rejectUnauthorized: false,
-        },
-
-        entities: [User, RefreshToken],
-
-        synchronize: true,
-      }),
+      useFactory: getDatabaseConfig,
     }),
 
     AuthModule,
+    VehiclesModule,
   ],
 
   controllers: [AppController],
