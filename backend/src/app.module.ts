@@ -1,10 +1,12 @@
-
 import { Module } from '@nestjs/common';
-import { AppController } from './app.controller.js';
-import { AppService } from './app.service.js';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { TypeOrmModule } from '@nestjs/typeorm';
+
+import { AppController } from './app.controller.js';
+import { AppService } from './app.service.js';
 import { getDatabaseConfig } from './config/database.config.js';
+
+import { AuthModule } from './auth/module/auth.module.js';
 import { VehiclesModule } from './vehicles/vehicles.module.js';
 
 @Module({
@@ -14,13 +16,16 @@ import { VehiclesModule } from './vehicles/vehicles.module.js';
     }),
 
     TypeOrmModule.forRootAsync({
+      imports: [ConfigModule],
       inject: [ConfigService],
       useFactory: getDatabaseConfig,
     }),
 
+    AuthModule,
     VehiclesModule,
   ],
+
   controllers: [AppController],
   providers: [AppService],
 })
-export class AppModule { }
+export class AppModule {}
